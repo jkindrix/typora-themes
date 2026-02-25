@@ -1,0 +1,1032 @@
+/*
+ * Typora Theme: Folio
+ * ================================================
+ * Designed for PDF generation and physical printing.
+ * Page size and margins are controlled by Typora's export settings.
+ *
+ * Design principles:
+ *   1. Print-first: all sizing in pt/mm — no sub-pixel rounding ambiguity.
+ *   2. Legibility floor: nothing below 7pt, body at 10pt (research-backed minimum).
+ *   3. Content integrity: overflow is visible, never clipped — no silent data loss.
+ *   4. Minimal !important: used only where Typora's internal styles require override.
+ *   5. Orphan/widow control on all text-bearing elements.
+ *   6. Graceful degradation: table stripes have border fallbacks for monochrome printers.
+ *
+ * Tested against: Typora ≥1.5 on macOS (WebKit), Windows/Linux (Chromium/Electron)
+ */
+
+
+/* ==========================================================================
+   §1  DESIGN TOKENS
+   All customization points in one place. Colors, type, spacing, page geometry.
+   ========================================================================== */
+
+:root {
+    /* — Palette — */
+    --color-bg:              #ffffff;
+    --color-text:            #1a1a1a;
+    --color-text-muted:      #555555;
+    --color-heading:         #000000;
+    --color-link:            #0055aa;
+    --color-rule:            #cccccc;
+
+    /* — Code — */
+    --color-code-bg:         #f6f6f6;
+    --color-code-border:     #e0e0e0;
+
+    /* — Tables — */
+    --color-table-border:    #cccccc;
+    --color-table-head-bg:   #f0f0f0;
+    --color-table-stripe-bg: #f8f8f8;
+
+    /* — Blockquotes — */
+    --color-quote-border:    #999999;
+    --color-quote-text:      #444444;
+
+    /* — Typography —
+       System font stacks — no @include-when-export needed.
+       Every family ships with the OS; Typora's PDF export
+       embeds glyphs directly, so no external fetch is required. */
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+                 Helvetica, Arial, sans-serif,
+                 "Apple Color Emoji", "Segoe UI Emoji";
+    --font-mono: "SF Mono", "Fira Code", "Fira Mono", "Cascadia Code",
+                 Menlo, Consolas, "DejaVu Sans Mono", monospace;
+
+    /* — Spacing (compact, print-appropriate) — */
+    --sp-paragraph:          0.5em;
+    --sp-heading-above:      1em;
+    --sp-heading-below:      0.4em;
+    --sp-list-indent:        1.5em;
+
+    /* — Page geometry — */
+    --page-content-width:      180mm;   /* Screen editor column */
+    --page-content-width-wide: 195mm;   /* Wide-screen editor column (≥1400px viewport) */
+
+    /* — Typora UI (sidebar, file list, selection) —
+       Variables Typora reads directly for UI chrome.
+       Aliases point back to internal tokens where possible. */
+    --bg-color:                  var(--color-bg);
+    --text-color:                var(--color-text);
+    --monospace:                 var(--font-mono);
+    --side-bar-bg-color:         #fafafa;
+    --control-text-color:        #666666;
+    --active-file-bg-color:      #e8e8e8;
+    --active-file-text-color:    var(--color-text);
+    --active-file-border-color:  #d0d0d0;
+    --window-border:             1px solid #e0e0e0;
+    --item-hover-bg-color:       #eeeeee;
+    --item-hover-text-color:     var(--color-text);
+    --select-text-bg-color:      #b5d6fc;
+    --select-text-font-color:    auto;
+    --md-char-color:             #999999;
+    --meta-content-color:        #888888;
+    --primary-color:             var(--color-link);
+    --primary-btn-border-color:  var(--color-link);
+    --primary-btn-text-color:    #ffffff;
+
+    /* — Mermaid — */
+    --mermaid-theme:             neutral;
+    --mermaid-font-family:       var(--font-body);
+}
+
+
+/* ==========================================================================
+   §2  BASE / DOCUMENT ROOT
+   ========================================================================== */
+
+html {
+    font-size: 10pt;                      /* Clean integer pt — no sub-pixel math */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: var(--font-body);
+    color: var(--color-text);
+    background-color: var(--color-bg);
+    line-height: 1.5;                     /* 1.5× is the research-backed sweet spot */
+    margin: 0;
+    padding: 0;
+}
+
+
+/* ==========================================================================
+   §3  WRITING AREA
+   Content column width controlled by --page-* tokens in §1.
+   ========================================================================== */
+
+#write {
+    max-width: var(--page-content-width);
+    margin: 0 auto;
+    padding: 15pt 20pt 60pt 20pt;
+}
+
+@media only screen and (min-width: 1400px) {
+    #write {
+        max-width: var(--page-content-width-wide);
+    }
+}
+
+
+/* ==========================================================================
+   §4  HEADINGS
+   Sized in rem for user-preference scaling. Page-break protection applied
+   once here — not duplicated in @media print.
+   ========================================================================== */
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-body);
+    color: var(--color-heading);
+    font-weight: 600;
+    line-height: 1.25;
+    margin-top: var(--sp-heading-above);
+    margin-bottom: var(--sp-heading-below);
+
+    /* Never break after a heading; never split one across pages */
+    page-break-after: avoid;
+    break-after: avoid;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+/* Glue heading to the *immediately* following element.
+   The universal selector h* + * covers all cases — no need to enumerate
+   specific element types; CSS specificity is identical either way. */
+h1 + *, h2 + *, h3 + *, h4 + *, h5 + *, h6 + * {
+    page-break-before: avoid;
+    break-before: avoid;
+}
+
+/* --- Individual heading sizes --- */
+
+h1 {
+    font-size: 1.8rem;                    /* 18pt at 10pt base */
+    font-weight: 700;
+    border-bottom: 1pt solid var(--color-rule);
+    padding-bottom: 0.3em;
+    margin-top: 0;                        /* First heading sits flush at top */
+}
+
+h2 {
+    font-size: 1.5rem;                    /* 15pt */
+    border-bottom: 0.5pt solid #e0e0e0;
+    padding-bottom: 0.25em;
+}
+
+h3 { font-size: 1.3rem; }                /* 13pt */
+h4 { font-size: 1.15rem; }               /* 11.5pt */
+h5 { font-size: 1.05rem; }               /* 10.5pt */
+
+h6 {
+    font-size: 1rem;                      /* 10pt — same as body */
+    color: var(--color-text-muted);
+}
+
+
+/* ==========================================================================
+   §5  BODY TEXT
+   ========================================================================== */
+
+p {
+    margin: var(--sp-paragraph) 0;
+    orphans: 3;
+    widows: 3;
+}
+
+strong, b { font-weight: 600; }
+em, i     { font-style: italic; }
+
+a {
+    color: var(--color-link);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+mark {
+    background-color: #fff3cd;
+    padding: 0.1em 0.2em;
+    border-radius: 2pt;
+}
+
+
+/* ==========================================================================
+   §6  LISTS
+   ========================================================================== */
+
+ul, ol {
+    margin: var(--sp-paragraph) 0;
+    padding-left: var(--sp-list-indent);
+    orphans: 3;
+    widows: 3;
+}
+
+/* Nested lists collapse their outer margin */
+ul ul, ul ol, ol ul, ol ol {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+li {
+    margin: 0.15em 0;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+li > p {
+    margin: 0.2em 0;
+}
+
+/* --- Task lists (Typora-specific) --- */
+
+.md-task-list-item {
+    list-style-type: none;
+    padding-left: 0.2em;
+}
+
+.md-task-list-item > input {
+    margin-left: -1.5em;
+    margin-right: 0.3em;
+}
+
+.task-list {
+    padding-left: 1.2em;
+}
+
+
+/* ==========================================================================
+   §7  BLOCKQUOTES
+   page-break-inside deliberately omitted — long quotes would leave a blank
+   page gap. Instead we rely on orphan/widow control for graceful splitting.
+   box-decoration-break: clone ensures the border-left repeats on each
+   page fragment when a long blockquote spans multiple pages.
+   ========================================================================== */
+
+blockquote {
+    margin: var(--sp-paragraph) 0;
+    margin-left: 0;
+    padding: 0.3em 0 0.3em 1em;
+    border-left: 3pt solid var(--color-quote-border);
+    color: var(--color-quote-text);
+    font-style: italic;
+    orphans: 3;
+    widows: 3;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+blockquote blockquote {
+    margin-left: 0;
+}
+
+blockquote p {
+    margin: 0.3em 0;
+}
+
+
+/* ==========================================================================
+   §8  INLINE CODE
+   ========================================================================== */
+
+code, tt {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background-color: var(--color-code-bg);
+    border: 0.5pt solid var(--color-code-border);
+    border-radius: 2pt;
+    padding: 0.05em 0.3em;
+}
+
+/* Prevent compounding em reductions from breaching the legibility floor
+   in nested contexts (e.g. code inside a table cell inside a blockquote). */
+table code, table tt,
+blockquote code, blockquote tt {
+    font-size: max(7.5pt, 0.85em);
+}
+
+
+/* ==========================================================================
+   §9  CODE BLOCKS / FENCED CODE
+   Key decisions:
+     • 7.5pt minimum — never below the legibility floor.
+     • overflow: visible — content extends into margin rather than being
+       silently clipped. A wide diagram that bleeds is infinitely better
+       than one that's secretly truncated.
+     • No background/border in screen mode either — mirrors final print output
+       so WYSIWYG is honest.
+   ========================================================================== */
+
+pre, .md-fences {
+    font-family: var(--font-mono);
+    font-size: 7.5pt;                     /* Deliberately pt, not rem — fixed at the
+                                              legibility floor for glyph disambiguation
+                                              (l/1/I, 0/O). Headings and body use rem
+                                              and respond to Typora's font-size slider. */
+    line-height: 1.3;
+    background-color: transparent;
+    border: none;
+    padding: 0.4em 0;
+    margin: var(--sp-paragraph) 0;
+    white-space: pre;
+    overflow-x: visible;
+    max-width: 100%;
+    box-sizing: border-box;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.md-fences {
+    margin-top: 0.6em;
+    margin-bottom: 0.6em;
+}
+
+/* Strip decoration from code inside pre */
+pre code,
+.md-fences code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+    white-space: pre;
+}
+
+
+/* ==========================================================================
+   §10  TABLES
+   Striped rows have a border-bottom fallback so row distinction survives
+   monochrome printing where background colors are stripped.
+   ========================================================================== */
+
+table {
+    border-collapse: collapse;
+    border-spacing: 0;
+    margin: var(--sp-paragraph) 0;
+    font-size: 0.95em;
+    width: auto;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+thead {
+    background-color: var(--color-table-head-bg);
+}
+
+/* Repeat table header on every page if a table spans pages */
+thead {
+    display: table-header-group;
+}
+
+th, td {
+    border: 0.5pt solid var(--color-table-border);
+    padding: 0.3em 0.6em;
+    text-align: left;
+    vertical-align: top;
+}
+
+th {
+    font-weight: 600;
+}
+
+/* Striped rows + border fallback for monochrome printers */
+tr:nth-child(even) {
+    background-color: var(--color-table-stripe-bg);
+}
+
+tr {
+    border-bottom: 0.25pt solid #e0e0e0;  /* Visible even without background color */
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+
+/* ==========================================================================
+   §11  HORIZONTAL RULE
+   ========================================================================== */
+
+hr {
+    height: 0.75pt;
+    border: none;
+    background-color: var(--color-rule);
+    margin: 1em 0;
+    page-break-after: avoid;
+    break-after: avoid;
+}
+
+
+/* ==========================================================================
+   §12  IMAGES
+   ========================================================================== */
+
+img {
+    max-width: 100%;
+    height: auto;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+figure {
+    margin: var(--sp-paragraph) 0;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.md-image > .md-meta {
+    color: var(--meta-content-color);
+    font-size: 0.85em;
+}
+
+
+/* ==========================================================================
+   §13  TABLE OF CONTENTS
+   ========================================================================== */
+
+.md-toc {
+    margin: 1em 0;
+    font-size: 0.95em;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.md-toc-content {
+    margin-left: 0;
+}
+
+.md-toc-item {
+    color: var(--color-link);
+}
+
+
+/* ==========================================================================
+   §14  YAML FRONT MATTER
+   ========================================================================== */
+
+#write pre.md-meta-block {
+    font-size: 0.85em;
+    background-color: #f8f8f8;
+    border: 1pt dashed #cccccc;
+    padding: 0.5em;
+    margin-bottom: 1em;
+    color: #666666;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+
+/* ==========================================================================
+   §15  FOOTNOTES
+   ========================================================================== */
+
+.footnotes,
+.footnotes-area {
+    font-size: 0.9em;
+}
+
+.footnotes {
+    margin-top: 1.5em;
+    border-top: 0.5pt solid var(--color-rule);
+    padding-top: 0.5em;
+}
+
+sup.md-footnote {
+    color: var(--color-link);
+}
+
+
+/* ==========================================================================
+   §16  DEFINITION LISTS, KBD, ABBR, SUB/SUP
+   ========================================================================== */
+
+dl {
+    margin: var(--sp-paragraph) 0;
+}
+
+dt {
+    font-weight: 600;
+    page-break-after: avoid;
+    break-after: avoid;
+}
+
+dd {
+    margin-left: var(--sp-list-indent);
+    margin-bottom: 0.3em;
+    orphans: 3;
+    widows: 3;
+}
+
+abbr[title] {
+    border-bottom: 0.5pt dotted #999999;
+    cursor: help;
+    text-decoration: none;
+}
+
+kbd {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    padding: 0.1em 0.4em;
+    background-color: #f7f7f7;
+    border: 0.5pt solid #cccccc;
+    border-radius: 2pt;
+    box-shadow: 0 1pt 0 #bbbbbb;
+}
+
+sub, sup {
+    font-size: 0.75em;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+}
+
+sup { top: -0.5em; }
+sub { bottom: -0.25em; }
+
+
+/* ==========================================================================
+   §17  MATH (MathJax / KaTeX)
+   ========================================================================== */
+
+.mathjax-block {
+    margin: var(--sp-paragraph) 0;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.md-mathjax-midline {
+    background: var(--color-code-bg);
+}
+
+
+/* ==========================================================================
+   §18  DIAGRAMS (Mermaid, etc.)
+   ========================================================================== */
+
+.md-diagram-panel {
+    margin: var(--sp-paragraph) 0;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.md-diagram-panel svg {
+    max-width: 100%;
+}
+
+
+/* ==========================================================================
+   §19  AUTHOR UTILITY CLASSES
+   Drop these into your markdown (via Typora's HTML support) to control
+   page layout manually when the automatic rules aren't enough.
+   ========================================================================== */
+
+/* Force a page break before this element */
+.page-break,
+.page-break-before {
+    page-break-before: always;
+    break-before: page;
+}
+
+/* Force a page break after this element */
+.page-break-after {
+    page-break-after: always;
+    break-after: page;
+}
+
+/* Prevent this element from being split across pages */
+.keep-together {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+/* Keep this element on the same page as the next sibling */
+.keep-with-next {
+    page-break-after: avoid;
+    break-after: avoid;
+}
+
+
+/* ==========================================================================
+   §20  TYPORA UI ELEMENTS
+   These only affect the editor chrome — invisible in export/print.
+   ========================================================================== */
+
+.ty-table-edit {
+    background-color: transparent;
+}
+
+.md-meta, .md-before, .md-after {
+    color: var(--md-char-color);
+}
+
+.md-tag {
+    color: var(--meta-content-color);
+    opacity: 1;
+}
+
+#write > h3.md-focus:before,
+#write > h4.md-focus:before,
+#write > h5.md-focus:before,
+#write > h6.md-focus:before {
+    left: -1.4rem;
+    color: #aaaaaa;
+}
+
+header, .context-menu, .megamenu-content, footer {
+    font-family: var(--font-body);
+}
+
+
+/* ==========================================================================
+   §21  SIDEBAR & FILE LIST
+   ========================================================================== */
+
+#typora-sidebar {
+    background-color: var(--side-bar-bg-color);
+}
+
+.file-list-item.active {
+    background-color: var(--active-file-bg-color);
+    color: var(--active-file-text-color);
+}
+
+.outline-item:hover {
+    background-color: var(--item-hover-bg-color);
+}
+
+#typora-quick-open {
+    background-color: #f8f8f8;
+}
+
+.mac-seamless-mode #typora-sidebar {
+    background-color: var(--side-bar-bg-color);
+}
+
+
+/* ==========================================================================
+   §22  PLATFORM-SPECIFIC FIXES
+   ========================================================================== */
+
+/* --- macOS --- */
+.mac-os #write {
+    caret-color: AccentColor;
+}
+
+.html-for-mac .context-menu {
+    background-color: var(--color-bg);
+}
+
+/* --- Windows --- */
+.os-windows-7 strong,
+.os-windows-7 b {
+    font-weight: 760;              /* Win7 font rendering needs a heavier weight */
+}
+
+.os-windows #typora-source {
+    font-family: var(--font-mono);
+}
+
+/* --- Linux (Electron/Node) --- */
+.typora-node #typora-sidebar {
+    background-color: var(--side-bar-bg-color);
+}
+
+.typora-node .outline-item:hover {
+    background-color: var(--item-hover-bg-color);
+    border-left: 28pt solid var(--item-hover-bg-color);
+    border-right: 28pt solid var(--item-hover-bg-color);
+}
+
+.typora-node .file-list-item-parent-loc,
+.typora-node .file-list-item-time,
+.typora-node .file-list-item-summary {
+    font-family: var(--font-body);
+}
+
+.typora-node .md-task-list-item > input {
+    margin-top: 0.3em;
+}
+
+/* --- Linux scrollbar --- */
+.typora-node::-webkit-scrollbar {
+    width: 8pt;
+    height: 8pt;
+}
+
+.typora-node::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4pt;
+}
+
+.typora-node::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.typora-node::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+
+/* ==========================================================================
+   §23  PRINT STYLES
+   Everything that changes specifically for print/PDF output.
+   Page size and margins are deferred to Typora's export settings.
+   ========================================================================== */
+
+@media print {
+
+    /* --- Page geometry ---
+     * Page size and margins are controlled by Typora's export settings
+     * (Preferences → Export → PDF), not by this theme. This ensures the
+     * theme works with any page size Typora supports (A3–A5, Letter,
+     * Legal, Tabloid, or custom) and any margin configuration. --- */
+
+    /* --- Root overrides --- */
+    html {
+        font-size: 10pt;                  /* Maintain our base size */
+    }
+
+    body {
+        background: white;
+        color: black;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* --- Writing area fills the page --- */
+    #write {
+        max-width: 100%;
+        padding: 0;
+        margin: 0;
+    }
+
+    /* --- Orphan/widow on all text containers --- */
+    p, li, blockquote, dd {
+        orphans: 3;
+        widows: 3;
+    }
+
+    /* --- Headings: no break after, no break inside ---
+       (Already set in §4 but reinforced here for Typora's
+        export engine which sometimes resets properties.) */
+    h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    h1 + *, h2 + *, h3 + *, h4 + *, h5 + *, h6 + * {
+        page-break-before: avoid !important;
+        break-before: avoid !important;
+    }
+
+    /* --- Code blocks ---
+       7.5pt keeps glyphs distinguishable (l/1/I, 0/O).
+       overflow: visible lets wide content bleed into margin
+       rather than being silently clipped. */
+    pre, .md-fences {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        font-size: 7.5pt !important;
+        line-height: 1.25 !important;
+        white-space: pre !important;
+        overflow: visible !important;
+        border: none !important;
+        background-color: transparent !important;
+    }
+
+    code {
+        font-size: 8pt !important;
+        background-color: transparent !important;
+        border: none !important;
+    }
+
+    /* --- Tables --- */
+    table {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    thead {
+        display: table-header-group;       /* Repeat header on every page */
+    }
+
+    tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    /* Darken borders for crisp print output */
+    table, th, td {
+        border-color: #999999 !important;
+    }
+
+    thead {
+        background-color: #eeeeee !important;
+    }
+
+    /* --- Images --- */
+    img {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        max-width: 100% !important;
+    }
+
+    /* --- Lists: avoid orphaned first item on previous page --- */
+    ul, ol {
+        page-break-before: avoid;
+    }
+
+    li {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    /* --- Definition lists: keep term with definition --- */
+    dt {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+    }
+
+    /* --- Horizontal rules: keep with following content --- */
+    hr {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+    }
+
+    /* --- Figures, TOC, math, diagrams, YAML --- */
+    figure,
+    .md-toc,
+    .mathjax-block,
+    .md-diagram-panel,
+    #write pre.md-meta-block {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    /* --- Blockquote border continuity across page breaks --- */
+    blockquote {
+        -webkit-box-decoration-break: clone;
+        box-decoration-break: clone;
+    }
+
+    /* --- Links ---
+       Normalize to black + underline for monochrome printers.
+       Suppress generated URL text (saves space on printouts). */
+    a, a:visited {
+        color: inherit;
+        text-decoration: underline;
+    }
+
+    a[href]:after {
+        content: none !important;
+    }
+
+    /* --- Hide Typora UI artifacts --- */
+    .typora-export .md-toc-tooltip,
+    .typora-export .outline-item-wrapper {
+        display: none;
+    }
+}
+
+
+/* ==========================================================================
+   §24  EXPORT STYLES (PDF / HTML export via Typora)
+   Typora's export pipeline applies .typora-export to the root.
+   These rules ensure the exported document matches print fidelity.
+   ========================================================================== */
+
+.typora-export * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.typora-export h1,
+.typora-export h2 {
+    border-bottom-color: #cccccc;
+}
+
+/* Code blocks in export — match print sizing, allow overflow */
+.typora-export pre,
+.typora-export .md-fences {
+    font-size: 7.5pt !important;
+    line-height: 1.25 !important;
+    white-space: pre !important;
+    overflow: visible !important;
+    max-width: 100% !important;
+    border: none !important;
+    background-color: transparent !important;
+}
+
+.typora-export code {
+    font-size: 8pt !important;
+}
+
+.typora-export #write {
+    max-width: 100%;
+    padding: 0;
+}
+
+
+/* ==========================================================================
+   §25  CODEMIRROR SYNTAX HIGHLIGHTING
+   Muted, print-friendly palette. Every token carries weight or style
+   alongside color so structure survives monochrome printing.
+   Targets both .cm-s-inner (fenced code blocks) and .cm-s-typora-default
+   (source mode).
+   ========================================================================== */
+
+/* --- Keywords, tags, builtins — structural tokens --- */
+.cm-s-inner .cm-keyword,
+.cm-s-typora-default .cm-keyword {
+    color: #7a3e9d;
+    font-weight: bold;
+}
+
+.cm-s-inner .cm-tag,
+.cm-s-typora-default .cm-tag,
+.cm-s-inner .cm-builtin,
+.cm-s-typora-default .cm-builtin {
+    color: #7a3e9d;
+}
+
+/* --- Definitions — anchor tokens --- */
+.cm-s-inner .cm-def,
+.cm-s-typora-default .cm-def {
+    color: #1a1a1a;
+    font-weight: bold;
+}
+
+/* --- Variables — most common, stays neutral --- */
+.cm-s-inner .cm-variable,
+.cm-s-typora-default .cm-variable {
+    color: #1a1a1a;
+}
+
+/* --- Secondary identifiers --- */
+.cm-s-inner .cm-variable-2,
+.cm-s-typora-default .cm-variable-2,
+.cm-s-inner .cm-property,
+.cm-s-typora-default .cm-property,
+.cm-s-inner .cm-qualifier,
+.cm-s-typora-default .cm-qualifier {
+    color: #365f91;
+}
+
+/* --- Type annotations --- */
+.cm-s-inner .cm-variable-3,
+.cm-s-typora-default .cm-variable-3 {
+    color: #365f91;
+    font-style: italic;
+}
+
+/* --- Strings — data --- */
+.cm-s-inner .cm-string,
+.cm-s-typora-default .cm-string {
+    color: #2a7b3f;
+}
+
+/* --- Regex / template strings --- */
+.cm-s-inner .cm-string-2,
+.cm-s-typora-default .cm-string-2 {
+    color: #2a7b3f;
+    font-style: italic;
+}
+
+/* --- Literal values --- */
+.cm-s-inner .cm-number,
+.cm-s-typora-default .cm-number,
+.cm-s-inner .cm-atom,
+.cm-s-typora-default .cm-atom,
+.cm-s-inner .cm-attribute,
+.cm-s-typora-default .cm-attribute {
+    color: #b35000;
+}
+
+/* --- Comments — secondary content --- */
+.cm-s-inner .cm-comment,
+.cm-s-typora-default .cm-comment {
+    color: #808080;
+    font-style: italic;
+}
+
+/* --- Meta tokens --- */
+.cm-s-inner .cm-meta,
+.cm-s-typora-default .cm-meta {
+    color: #808080;
+}
+
+/* --- Operators — syntactic glue --- */
+.cm-s-inner .cm-operator,
+.cm-s-typora-default .cm-operator {
+    color: #444444;
+    font-weight: bold;
+}
+
+/* --- Errors — must be unmissable --- */
+.cm-s-inner .cm-error,
+.cm-s-typora-default .cm-error {
+    color: #cc0000;
+    text-decoration: underline;
+}
+
